@@ -11,7 +11,7 @@ public class MoveMyMouseToHideApp {
   private static JLabel statusLabel;
 
   public static void main(String[] args) {
-    JFrame frame = new JFrame("Mouse Mover");
+    JFrame frame = new JFrame("Move My Mouse To Hide");
     frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
     frame.setSize(300, 200);
     frame.setResizable(false); // Make the window unresizable
