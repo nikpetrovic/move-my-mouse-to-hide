@@ -4,18 +4,20 @@ import java.awt.*;
 import java.util.Random;
 
 public class MoveMyMouseToHide {
-  private static final int MOVE_DURATION_MS = 2000; // 2 seconds
-  private static final int PAUSE_DURATION_MS = 10000; // 10 seconds
-  private int moveAmount; // Dynamic movement amount
+  private final int moveAmount;
+  private final int moveDurationMs;
+  private final int pauseDurationMs;
   private volatile boolean running = false;
 
-  public MoveMyMouseToHide(int moveAmount) {
+  public MoveMyMouseToHide(int moveAmount, int moveDurationSeconds, int pauseDurationSeconds) {
     this.moveAmount = moveAmount;
+    this.moveDurationMs = moveDurationSeconds * 1000;
+    this.pauseDurationMs = pauseDurationSeconds * 1000;
   }
 
   public void start() {
     running = true;
-    new Thread(() -> {
+    Thread worker = new Thread(() -> {
       try {
         Robot robot = new Robot();
         PointerInfo pointerInfo = MouseInfo.getPointerInfo();
@@ -23,7 +25,7 @@ public class MoveMyMouseToHide {
         Random random = new Random();
 
         while (running) {
-          long moveEndTime = System.currentTimeMillis() + MOVE_DURATION_MS;
+          long moveEndTime = System.currentTimeMillis() + moveDurationMs;
 
           while (System.currentTimeMillis() < moveEndTime && running) {
             int xMove = random.nextInt(moveAmount * 2) - moveAmount;
@@ -36,12 +38,16 @@ public class MoveMyMouseToHide {
             Thread.sleep(100);
           }
 
-          Thread.sleep(PAUSE_DURATION_MS);
+          if (running) {
+            Thread.sleep(pauseDurationMs);
+          }
         }
       } catch (AWTException | InterruptedException e) {
-        e.printStackTrace();
+        Thread.currentThread().interrupt();
       }
-    }).start();
+    });
+    worker.setDaemon(true);
+    worker.start();
   }
 
   public void stop() {
