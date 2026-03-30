@@ -6,7 +6,7 @@ import java.awt.*;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 
-public class MoveMyMouseToHideApp {
+public class MSTeamsActivityMonitor {
 
   private static final int MOVE_AMOUNT_MIN   = 10;
   private static final int MOVE_AMOUNT_MAX   = 1000;
@@ -33,7 +33,7 @@ public class MoveMyMouseToHideApp {
   private static JLabel statusDot;
 
   public static void main(String[] args) {
-    SwingUtilities.invokeLater(MoveMyMouseToHideApp::createAndShowGui);
+    SwingUtilities.invokeLater(MSTeamsActivityMonitor::createAndShowGui);
   }
 
   private static void createAndShowGui() {
