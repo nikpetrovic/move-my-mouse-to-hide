@@ -4,14 +4,17 @@
   <groupId>com.microsoft.teams</groupId>
   <artifactId>com.microsoft.teams.activity</artifactId>
   <packaging>jar</packaging>
-  <version>1.0-SNAPSHOT</version>
+  <version>2.0</version>
   <name>MS Teams Worker</name>
   <url>http://maven.apache.org</url>
 
   <properties>
-    <maven.compiler.source>11</maven.compiler.source>
-    <maven.compiler.target>11</maven.compiler.target>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <app.main.class>com.hidemy.MoveMyMouseToHideApp</app.main.class>
+    <app.name>com.microsoft.teams.activity</app.name>
+    <app.version>${project.version}</app.version>
   </properties>
 
   <dependencies>
@@ -22,33 +25,77 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
-  
+
   <build>
     <plugins>
-        <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-assembly-plugin</artifactId>
-            <version>3.3.0</version>
+
+      <!-- 1. Fat jar -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <version>3.3.0</version>
+        <configuration>
+          <finalName>com.microsoft.teams.activity</finalName>
+          <appendAssemblyId>false</appendAssemblyId>
+          <archive>
+            <manifest>
+              <mainClass>${app.main.class}</mainClass>
+            </manifest>
+          </archive>
+          <descriptorRefs>
+            <descriptorRef>jar-with-dependencies</descriptorRef>
+          </descriptorRefs>
+        </configuration>
+        <executions>
+          <execution>
+            <id>make-assembly</id>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- 2. jpackage macOS .app via exec-maven-plugin (runs after package) -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <id>jpackage-app</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
             <configuration>
-                <archive>
-                    <manifest>
-                        <mainClass>com.hidemy.MoveMyMouseToHideApp</mainClass> <!-- Change this to your main class's fully qualified name -->
-                    </manifest>
-                </archive>
-                <descriptorRefs>
-                    <descriptorRef>jar-with-dependencies</descriptorRef>
-                </descriptorRefs>
+              <executable>jpackage</executable>
+              <arguments>
+                <argument>--type</argument>
+                <argument>app-image</argument>
+                <argument>--input</argument>
+                <argument>${project.build.directory}</argument>
+                <argument>--main-jar</argument>
+                <argument>com.microsoft.teams.activity.jar</argument>
+                <argument>--main-class</argument>
+                <argument>${app.main.class}</argument>
+                <argument>--name</argument>
+                <argument>${app.name}</argument>
+                <argument>--app-version</argument>
+                <argument>${app.version}</argument>
+                <argument>--dest</argument>
+                <argument>${project.build.directory}/jpackage</argument>
+                <argument>--java-options</argument>
+                <argument>-Xdock:name=${app.name}</argument>
+                <argument>--java-options</argument>
+                <argument>-Xmx128m</argument>
+              </arguments>
             </configuration>
-            <executions>
-                <execution>
-                    <id>make-assembly</id>
-                    <phase>package</phase>
-                    <goals>
-                        <goal>single</goal>
-                    </goals>
-                </execution>
-            </executions>
-        </plugin>
+          </execution>
+        </executions>
+      </plugin>
+
     </plugins>
-</build>
+  </build>
 </project>
