@@ -31,6 +31,7 @@ public class MSTeamsActivityMonitor {
   private static JButton stopButton;
   private static JLabel statusLabel;
   private static JLabel statusDot;
+  private static Timer deferredStopTimer;
 
   public static void main(String[] args) {
     SwingUtilities.invokeLater(MSTeamsActivityMonitor::createAndShowGui);
@@ -89,16 +90,90 @@ public class MSTeamsActivityMonitor {
         moveDurationField, moveDurationError);
 
     // Row 2 – Pause interval
-    JTextField pauseDurationField = styledField("10");
+    JTextField pauseDurationField = styledField("30");
     JLabel pauseDurationError = errorLabel();
     addFieldRow(card, gbc, 2,
         "Pause interval (sec)",
         "(" + PAUSE_DURATION_MIN + " \u2013 " + PAUSE_DURATION_MAX + " sec)  How long to wait between movement bursts.",
         pauseDurationField, pauseDurationError);
 
+    // Row 3 – Deferred stop checkbox
+    JCheckBox deferredStopCheck = new JCheckBox("Deferred stop");
+    deferredStopCheck.setFont(new Font("Segoe UI", Font.BOLD, 13));
+    deferredStopCheck.setForeground(TEXT_PRIMARY);
+    deferredStopCheck.setOpaque(false);
+    deferredStopCheck.setFocusPainted(false);
+    gbc.gridx = 0; gbc.gridy = 9; gbc.gridwidth = 2; gbc.weightx = 1;
+    card.add(deferredStopCheck, gbc);
+
+    // Row 4 – "Stop the move after" label + input + sec + mins label
+    JLabel stopAfterLabel = new JLabel("Stop the move after");
+    stopAfterLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
+    stopAfterLabel.setForeground(TEXT_PRIMARY);
+    stopAfterLabel.setEnabled(false);
+    gbc.gridx = 0; gbc.gridy = 10; gbc.gridwidth = 1; gbc.weightx = 0;
+    card.add(stopAfterLabel, gbc);
+
+    JPanel stopAfterInline = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+    stopAfterInline.setOpaque(false);
+    JTextField stopAfterField = styledFieldNarrow("120");
+    stopAfterField.setEnabled(false);
+    JLabel stopAfterSuffix = new JLabel("sec");
+    stopAfterSuffix.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+    stopAfterSuffix.setForeground(TEXT_MUTED);
+    stopAfterSuffix.setEnabled(false);
+    JLabel minsLabel = new JLabel("2.00 mins");
+    minsLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+    minsLabel.setForeground(ACCENT_CYAN);
+    minsLabel.setEnabled(false);
+    stopAfterInline.add(stopAfterField);
+    stopAfterInline.add(stopAfterSuffix);
+    stopAfterInline.add(minsLabel);
+    gbc.gridx = 1; gbc.gridy = 10; gbc.weightx = 1;
+    card.add(stopAfterInline, gbc);
+
+    gbc.gridx = 0; gbc.gridy = 11; gbc.gridwidth = 2; gbc.weightx = 1;
+    JLabel stopAfterHint = new JLabel("(1 \u2013 28800 sec)  After this many seconds the mover will automatically stop.");
+    stopAfterHint.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+    stopAfterHint.setForeground(TEXT_MUTED);
+    card.add(stopAfterHint, gbc);
+
+    JLabel stopAfterError = errorLabel();
+    gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2;
+    card.add(stopAfterError, gbc);
+
     card.setAlignmentX(Component.LEFT_ALIGNMENT);
     root.add(card);
     root.add(Box.createVerticalStrut(16));
+
+    // Wire deferred-stop checkbox
+    deferredStopCheck.addActionListener(e -> {
+      boolean checked = deferredStopCheck.isSelected();
+      stopAfterLabel.setEnabled(checked);
+      stopAfterField.setEnabled(checked);
+      stopAfterSuffix.setEnabled(checked);
+      minsLabel.setEnabled(checked);
+    });
+
+    // Live minutes converter
+    stopAfterField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+      private void update() {
+        String text = stopAfterField.getText().trim();
+        try {
+          int secs = Integer.parseInt(text);
+          if (secs > 0) {
+            minsLabel.setText(String.format("%.2f mins", secs / 60.0));
+          } else {
+            minsLabel.setText("—");
+          }
+        } catch (NumberFormatException ex) {
+          minsLabel.setText("—");
+        }
+      }
+      public void insertUpdate(javax.swing.event.DocumentEvent e)  { update(); }
+      public void removeUpdate(javax.swing.event.DocumentEvent e)  { update(); }
+      public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
+    });
 
     // ── Buttons ─────────────────────────────────────────────────────────────
     JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
@@ -177,6 +252,22 @@ public class MSTeamsActivityMonitor {
         valid = false;
       }
 
+      int stopAfterSecs = 0;
+      if (deferredStopCheck.isSelected()) {
+        try {
+          stopAfterSecs = Integer.parseInt(stopAfterField.getText().trim());
+          if (stopAfterSecs < 1 || stopAfterSecs > 28800) {
+            stopAfterError.setText("Must be between 1 and 28800");
+            valid = false;
+          } else {
+            stopAfterError.setText(" ");
+          }
+        } catch (NumberFormatException ex) {
+          stopAfterError.setText("Enter a whole number (1 \u2013 28800)");
+          valid = false;
+        }
+      }
+
       frame.pack();
 
       if (!valid) return;
@@ -184,9 +275,24 @@ public class MSTeamsActivityMonitor {
       randomMouseMover = new MoveMyMouseToHide(moveAmount, moveDuration, pauseDuration);
       randomMouseMover.start();
       setActive(true);
+
+      if (deferredStopCheck.isSelected()) {
+        final int delayMs = stopAfterSecs * 1000;
+        deferredStopTimer = new Timer(delayMs, ev -> {
+          if (randomMouseMover != null) randomMouseMover.stop();
+          setActive(false);
+          deferredStopTimer = null;
+        });
+        deferredStopTimer.setRepeats(false);
+        deferredStopTimer.start();
+      }
     });
 
     stopButton.addActionListener(e -> {
+      if (deferredStopTimer != null) {
+        deferredStopTimer.stop();
+        deferredStopTimer = null;
+      }
       if (randomMouseMover != null) {
         randomMouseMover.stop();
       }
@@ -280,6 +386,13 @@ public class MSTeamsActivityMonitor {
             new EmptyBorder(4, 8, 4, 8)));
       }
     });
+    return f;
+  }
+
+  private static JTextField styledFieldNarrow(String defaultValue) {
+    JTextField f = styledField(defaultValue);
+    f.setColumns(4);
+    f.setMaximumSize(new Dimension(55, 30));
     return f;
   }
 
